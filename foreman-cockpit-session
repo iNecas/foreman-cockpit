@@ -1,8 +1,15 @@
 #!/usr/bin/env ruby
 
 require "json"
+require "yaml"
 require "net/http"
 require "net/ssh"
+
+SETTINGS = { foreman_url: 'http://localhost:3000/api/v2/' }
+settings_files = [ './foreman-cockpit-settings.yml', '/etc/cockpit/foreman-cockpit-settings.yml' ]
+settings_files.each do |file|
+  SETTINGS.merge!(YAML.load_file(file)) if File.exists?(file)
+end
 
 def dbg(str)
     $stderr.write(str + "\n")
@@ -106,7 +113,7 @@ end
 
 def api_call(path, token)
   dbg("=> #{path}")
-  uri = URI('http://localhost:3000/api/v2/' + path)
+  uri = URI(SETTINGS[:foreman_url] + path)
   req = Net::HTTP::Get.new(uri)
   req["Cookie"] = "_session_id=#{token}"
   res = Net::HTTP.start(uri.hostname, uri.port) { |http| http.request(req) }
@@ -206,7 +213,7 @@ def ssh_with_proxy(urlstr, params)
   sock = TCPSocket.open(url.hostname, url.port)
 
   data = JSON.dump(params) + "\n"
-  inp_buf = "POST /remote_execution/ssh_session HTTP/1.1\nConnection: upgrade\nUpgrade: raw\nContent-Length: #{data.length}\n\n#{data}"
+  inp_buf = "POST /remote_execution/ssh_session HTTP/1.1\nHost: #{url.hostname}:#{url.port}\nConnection: upgrade\nUpgrade: raw\nContent-Length: #{data.length}\n\n#{data}"
   out_buf = ""
 
   ws_eof = false
